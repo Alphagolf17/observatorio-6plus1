@@ -7,7 +7,8 @@ on:
     - cron: "37 23 * * 1-5"
 
 permissions:
-  contents: read
+  permissions:
+  contents: write
 
 jobs:
   recopilar:
@@ -43,3 +44,23 @@ jobs:
             *.json
           if-no-files-found: warn
           retention-days: 30
+          
+      - name: Conservar historico
+        if: success()
+        run: |
+          if [ ! -d data ]; then
+            echo "No hay carpeta data para guardar"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/
+          if git diff --cached --quiet; then
+            echo "No hay cambios"
+          else
+            git commit -m "Actualizar historico financiero"
+            git push
+          fi
+          
