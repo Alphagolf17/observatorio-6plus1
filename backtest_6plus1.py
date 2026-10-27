@@ -1,32 +1,32 @@
-"""Backtest exploratorio 6+1: no usa datos futuros para construir señales.
-Ejecutar después de collector.py: python backtest_6plus1.py
-Solo biblioteca estándar. Horizonte de 5/10/20 sesiones; precios sin dividendos.
+"""Backtest exploratorio 6+1 sobre precios ajustados desde 2016.
+Señales técnicas conocidas al cierre; retornos futuros medidos desde ese cierre.
+La ejecución real al cierre no está garantizada. No incluye costes.
 """
 import csv
 import json
 from pathlib import Path
 from statistics import mean, median
 
-ROOT = Path('output')
+ROOT = Path('historico_inicial')
+OUT = Path('output')
 SYMBOLS = ('SPY', 'QQQ', 'SMH', 'ASML', 'AVGO')
 HORIZONS = (5, 10, 20)
-MIN_SAMPLE = 20
 
 
 def read_market(symbol):
-    path = ROOT / f'market_{symbol}.csv'
+    path = ROOT / f'market_{symbol}_adjusted.csv'
     if not path.exists():
-        return []
+        raise SystemExit(f'Falta {path}. Ejecuta primero la descarga historica.')
+    rows = {}
     with path.open(encoding='utf-8-sig', newline='') as f:
-        rows = []
         for r in csv.DictReader(f):
             try:
                 price = float(r['close'])
-                if price > 0:
-                    rows.append((r['date'], price))
+                if price > 0 and r.get('price_basis') == 'dividend_and_split_adjusted':
+                    rows[r['date']] = price
             except (ValueError, TypeError, KeyError):
-                pass
-    return sorted(dict(rows).items())
+                continue
+    return dict(sorted(rows.items()))
 
 
 def stats(values):
@@ -37,74 +37,96 @@ def stats(values):
             'positive_pct': round(100 * sum(v > 0 for v in values) / len(values), 1)}
 
 
+def evaluate(signals, prices, horizon, nonoverlap=False):
+    all_r, low, high = [], [], []
+    last_selected = -horizon
+    for i, score in signals:
+        if i + horizon >= len(prices):
+            continue
+        if nonoverlap and i - last_selected < horizon:
+            continue
+        ret = (prices[i + horizon] / prices[i] - 1) * 100
+        all_r.append(ret)
+        (high if score >= 2 else low).append(ret)
+        last_selected = i
+    return {'all_days': stats(all_r), '0_or_1_adverse_signal': stats(low),
+            '2_or_3_adverse_signals': stats(high),
+            'mean_difference_high_minus_low_pp': round(mean(high) - mean(low), 3) if high and low else None,
+            'enough_samples_in_both_groups': len(low) >= 20 and len(high) >= 20}
+
+
 def main():
     series = {s: read_market(s) for s in SYMBOLS}
-    if not series['SPY']:
-        raise SystemExit('No existe output/market_SPY.csv. Ejecuta collector.py.')
-    spy = dict(series['SPY'])
-    spy_dates = [d for d, _ in series['SPY']]
-    spy_prices = [v for _, v in series['SPY']]
-    # Señal construida SOLO con datos del día y los 20 cierres anteriores.
-    # Comparación QQQ/SMH vs SPY requiere mismo día inicial y final.
-    aligned = {}
-    for s in SYMBOLS:
-        by_date = dict(series[s])
-        aligned[s] = [by_date.get(d) for d in spy_dates]
+    dates = list(series['SPY'])
+    prices = list(series['SPY'].values())
+    if len(dates) < 100:
+        raise SystemExit('Historico SPY insuficiente.')
+    aligned = {s: [series[s].get(d) for d in dates] for s in SYMBOLS}
     signals = []
-    for i in range(20, len(spy_dates)):
-        day = spy_dates[i]
-        if any(aligned[s][i] is None or aligned[s][i-20] is None for s in ('SPY','QQQ','SMH')):
+    for i in range(20, len(dates)):
+        if any(aligned[s][i] is None or aligned[s][i-20] is None
+               for s in ('SPY', 'QQQ', 'SMH')):
             continue
-        spy20 = (aligned['SPY'][i] / aligned['SPY'][i-20] - 1) * 100
-        qqq20 = (aligned['QQQ'][i] / aligned['QQQ'][i-20] - 1) * 100
-        smh20 = (aligned['SMH'][i] / aligned['SMH'][i-20] - 1) * 100
         window = aligned['SPY'][i-19:i+1]
         if any(x is None for x in window):
             continue
-        adverse = (smh20 - spy20 < -5) + (qqq20 - spy20 < -2) + (aligned['SPY'][i] < mean(window))
-        signals.append((i, day, int(adverse)))
-    result = {'method': 'Estudio exploratorio de 3 señales técnicas, no del semáforo macro completo.',
-              'start_date': spy_dates[0], 'end_date': spy_dates[-1],
-              'spy_sessions': len(spy_dates), 'evaluated_signal_days': len(signals),
-              'rules': ['SMH - SPY a 20 sesiones < -5 pp', 'QQQ - SPY a 20 sesiones < -2 pp', 'SPY bajo su media de 20 sesiones'],
-              'horizons': {},
-              'limitations': ['Observaciones diarias solapadas: NO independientes.',
-                              'Datos compactos de ~100 sesiones: muestra insuficiente para validar ventaja.',
-                              'Cierres de precio sin ajuste garantizado por dividendos/splits.',
-                              'No incluye comisiones, spread ni impuestos.',
-                              'Las reglas son exploratorias y fueron elegidas tras ver datos recientes; riesgo de sobreajuste.',
-                              'No incluye las señales macro del semáforo, que requieren alineación por fecha de publicación.',
-                              'Los resultados históricos no demuestran capacidad predictiva.']}
+        returns = {s: (aligned[s][i] / aligned[s][i-20] - 1) * 100
+                   for s in ('SPY', 'QQQ', 'SMH')}
+        adverse = int(returns['SMH'] - returns['SPY'] < -5)
+        adverse += int(returns['QQQ'] - returns['SPY'] < -2)
+        adverse += int(prices[i] < mean(window))
+        signals.append((i, adverse))
+
+    result = {
+        'method': 'Estudio retrospectivo exploratorio de tres senales tecnicas, no del semaforo macro.',
+        'source': 'Yahoo Finance via yfinance; precios ajustados por dividendos y splits',
+        'start_date': dates[0], 'end_date': dates[-1],
+        'spy_sessions': len(dates), 'evaluated_signal_days': len(signals),
+        'rules': ['SMH - SPY a 20 sesiones < -5 pp', 'QQQ - SPY a 20 sesiones < -2 pp',
+                  'SPY bajo su media de 20 sesiones'],
+        'horizons': {},
+        'limitations': [
+            'Los resultados diarios se solapan; la muestra no solapada es mas conservadora, pero no garantiza independencia.',
+            'Los umbrales se eligieron tras observar datos recientes: riesgo de sobreajuste.',
+            'No hay validacion fuera de muestra ni prueba de significacion estadistica.',
+            'Se supone entrada al cierre que genero la senal; no es necesariamente ejecutable a ese precio.',
+            'No incluye comisiones, spreads, impuestos ni slippage.',
+            'Precios ajustados historicos pueden incorporar revisiones y no representan una simulacion exacta de operativa.',
+            'No incluye indicadores macro alineados por fecha de publicacion.',
+            'No hay garantia de capacidad predictiva ni recomendacion automatica.'
+        ]
+    }
     for h in HORIZONS:
-        all_r, low, high = [], [], []
-        for i, _, score in signals:
-            if i + h >= len(spy_prices):
-                continue
-            ret = (spy_prices[i+h] / spy_prices[i] - 1) * 100
-            all_r.append(ret)
-            (high if score >= 2 else low).append(ret)
         result['horizons'][str(h)] = {
-            'all_days': stats(all_r), '0_or_1_adverse_signal': stats(low),
-            '2_or_3_adverse_signals': stats(high),
-            'mean_difference_high_minus_low_pp': round(mean(high)-mean(low), 3) if high and low else None,
-            'enough_samples_in_both_groups': len(low) >= MIN_SAMPLE and len(high) >= MIN_SAMPLE}
-    ROOT.mkdir(exist_ok=True)
-    (ROOT / 'backtest_6plus1.json').write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
-    lines = ['# Validación exploratoria 6+1', '', f"Periodo: {result['start_date']} a {result['end_date']}",
-             f"Sesiones SPY: {result['spy_sessions']}; días evaluados: {result['evaluated_signal_days']}", '',
-             'Señales adversas: SMH débil vs SPY, QQQ débil vs SPY, SPY bajo MA20.', '',
-             '| Horizonte | Días 0–1 señales | Días 2–3 señales | Diferencia media | Muestra suficiente |',
+            'overlapping': evaluate(signals, prices, h),
+            'non_overlapping': evaluate(signals, prices, h, nonoverlap=True)
+        }
+    OUT.mkdir(exist_ok=True)
+    (OUT / 'backtest_6plus1.json').write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
+    lines = ['# Backtest historico 6+1 (exploratorio)', '',
+             f"Periodo: {result['start_date']} a {result['end_date']}",
+             f"Sesiones SPY: {result['spy_sessions']}; dias con senal: {result['evaluated_signal_days']}",
+             'Precios ajustados; no es un backtest de estrategia ejecutable.', '',
+             '| Horizonte | Muestra | 0-1 senales | 2-3 senales | Diferencia |',
              '|---|---|---|---|---|']
-    for h, d in result['horizons'].items():
-        def fmt(x):
-            return f"{x['mean_pct']:+.2f}% (n={x['n']})" if x else 'sin datos'
-        diff = d['mean_difference_high_minus_low_pp']
-        lines.append(f"| {h} sesiones | {fmt(d['0_or_1_adverse_signal'])} | {fmt(d['2_or_3_adverse_signals'])} | {diff:+.2f} pp" + ('' if diff is not None else '') + f" | {'Sí' if d['enough_samples_in_both_groups'] else 'No'} |" if diff is not None else f"| {h} sesiones | {fmt(d['0_or_1_adverse_signal'])} | {fmt(d['2_or_3_adverse_signals'])} | N/D | No |")
-    lines += ['', '## Limitaciones', ''] + ['- '+x for x in result['limitations']]
-    (ROOT / 'backtest_6plus1.md').write_text('\n'.join(lines)+'\n', encoding='utf-8')
-    print('Generados output/backtest_6plus1.json y output/backtest_6plus1.md')
-    for h, d in result['horizons'].items():
-        print(h, 'sesiones:', d['mean_difference_high_minus_low_pp'], 'pp; muestra suficiente:', d['enough_samples_in_both_groups'])
+    for h, variants in result['horizons'].items():
+        for label, key in [('Diaria solapada', 'overlapping'), ('Sin solapamiento', 'non_overlapping')]:
+            d = variants[key]
+            def fmt(x):
+                return f"{x['mean_pct']:+.2f}% (n={x['n']})" if x else 'N/D'
+            diff = d['mean_difference_high_minus_low_pp']
+            lines.append(f"| {h} | {label} | {fmt(d['0_or_1_adverse_signal'])} | "
+                         f"{fmt(d['2_or_3_adverse_signals'])} | "
+                         f"{diff:+.2f} pp |" if diff is not None else
+                         f"| {h} | {label} | {fmt(d['0_or_1_adverse_signal'])} | "
+                         f"{fmt(d['2_or_3_adverse_signals'])} | N/D |")
+    lines += ['', '## Limitaciones', ''] + ['- ' + x for x in result['limitations']]
+    (OUT / 'backtest_6plus1.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    print('Backtest historico generado en output/backtest_6plus1.json y .md')
+    for h, variants in result['horizons'].items():
+        print(h, 'sesiones, diferencia no solapada:',
+              variants['non_overlapping']['mean_difference_high_minus_low_pp'], 'pp')
+
 
 if __name__ == '__main__':
     main()
