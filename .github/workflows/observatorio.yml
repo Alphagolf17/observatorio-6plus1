@@ -1,0 +1,44 @@
+
+name: Observatorio 6+1
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "37 23 * * 1-5"
+
+permissions:
+  contents: read
+
+jobs:
+  recopilar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Ejecutar observatorio
+        env:
+          ALPHAVANTAGE_API_KEY: ${{ secrets.ALPHAVANTAGE_API_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: |
+          python coleccionista.py
+
+      - name: Guardar resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: observatorio-6plus1
+          path: |
+            data/
+            output/
+            *.csv
+            *.json
+          if-no-files-found: warn
+          retention-days: 30
