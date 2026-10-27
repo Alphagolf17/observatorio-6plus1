@@ -29,6 +29,7 @@ jobs:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
         run: |
           python collector.py
+          python radar.py
 
       - name: Guardar resultados
         if: always()
