@@ -36,6 +36,7 @@ jobs:
           python radar.py
           python backtest_6plus1.py
           python guardar_historico.py
+          python validacion_6plus1.py
 
       - name: Guardar resultados
         if: always()
