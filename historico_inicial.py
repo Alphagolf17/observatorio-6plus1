@@ -1,6 +1,7 @@
 
-"""Actualiza el histórico ajustado de Yahoo Finance.
-Valida todas las series antes de sustituir los archivos existentes.
+"""Actualiza el historico ajustado de Yahoo Finance.
+
+Valida todas las series antes de sustituir archivos.
 No modifica historico/ ni output/.
 """
 import csv
@@ -8,35 +9,55 @@ import math
 import os
 import sys
 import tempfile
+import warnings
 from datetime import date, datetime, timezone
 from pathlib import Path
 
 import yfinance as yf
 
-START = '2016-01-01'
-SYMBOLS = ('SPY', 'QQQ', 'SMH', 'ASML', 'AVGO')
-DEST = Path('historico_inicial')
+warnings.filterwarnings(
+    "ignore",
+    message=".*inplace keyword.*deprecated.*",
+    category=FutureWarning,
+)
+
+START = "2016-01-01"
+SYMBOLS = ("SPY", "QQQ", "SMH", "ASML", "AVGO")
+DEST = Path("historico_inicial")
+
 FIELDS = (
-    'date', 'open', 'high', 'low', 'close', 'volume',
-    'symbol', 'source', 'price_basis', 'retrieved_at_utc'
+    "date", "open", "high", "low", "close", "volume",
+    "symbol", "source", "price_basis", "retrieved_at_utc"
 )
 
 
-def download_one(symbol):
-    frame = yf.download(
-        symbol, start=START, interval='1d',
-        auto_adjust=True, progress=False,
-        threads=False, actions=False
-    )
-    if frame is None or frame.empty:
-        raise ValueError('Yahoo Finance no ha devuelto cotizaciones')
+def log(message):
+    print(message, flush=True)
 
-    if getattr(frame.columns, 'nlevels', 1) > 1:
+
+def download_one(symbol):
+    log(f"INICIO {symbol}")
+
+    frame = yf.download(
+        symbol,
+        start=START,
+        interval="1d",
+        auto_adjust=True,
+        progress=False,
+        threads=False,
+        actions=False,
+    )
+
+    if frame is None or frame.empty:
+        raise ValueError("Yahoo Finance no devuelve cotizaciones")
+
+    if getattr(frame.columns, "nlevels", 1) > 1:
         frame.columns = frame.columns.get_level_values(0)
 
-    needed = ('Open', 'High', 'Low', 'Close', 'Volume')
+    needed = ("Open", "High", "Low", "Close", "Volume")
+
     if any(col not in frame.columns for col in needed):
-        raise ValueError('Faltan columnas OHLCV')
+        raise ValueError("Faltan columnas OHLCV")
 
     stamp = datetime.now(timezone.utc).isoformat()
     rows = []
@@ -46,43 +67,85 @@ def download_one(symbol):
         op, hi, lo, cl, vol = values
 
         if not all(math.isfinite(v) for v in values):
-            raise ValueError(f'Valor no finito: {symbol} {day}')
+            raise ValueError(
+                f"Valor no finito en {day.date()}: {values}"
+            )
 
         if not (
             0 < lo <= min(op, cl)
             <= max(op, cl) <= hi
             and vol >= 0
         ):
-            raise ValueError(f'OHLCV inválido: {symbol} {day}')
+            raise ValueError(
+                f"OHLCV invalido en {day.date()}: "
+                f"open={op}, high={hi}, low={lo}, "
+                f"close={cl}, volume={vol}"
+            )
 
         rows.append(dict(zip(FIELDS, (
-            day.strftime('%Y-%m-%d'),
-            *values, symbol, 'Yahoo Finance via yfinance',
-            'dividend_and_split_adjusted', stamp
+            day.strftime("%Y-%m-%d"),
+            *values,
+            symbol,
+            "Yahoo Finance via yfinance",
+            "dividend_and_split_adjusted",
+            stamp,
         ))))
 
-    if len(rows) < 500 or len({r['date'] for r in rows}) != len(rows):
-        raise ValueError(f'Histórico insuficiente o duplicado: {symbol}')
+    if len(rows) < 500:
+        raise ValueError(
+            f"Historico insuficiente: {len(rows)} sesiones"
+        )
 
-    if rows != sorted(rows, key=lambda r: r['date']):
-        raise ValueError(f'Fechas desordenadas: {symbol}')
+    if len({r["date"] for r in rows}) != len(rows):
+        raise ValueError("Fechas duplicadas")
 
-    if (date.today() - date.fromisoformat(rows[-1]['date'])).days > 7:
-        raise ValueError(f'Último cierre antiguo: {symbol}')
+    if rows != sorted(rows, key=lambda r: r["date"]):
+        raise ValueError("Fechas desordenadas")
 
-    target = DEST / f'market_{symbol}_adjusted.csv'
+    last = date.fromisoformat(rows[-1]["date"])
+    age = (datetime.now(timezone.utc).date() - last).days
+
+    log(
+        f"DESCARGADO {symbol}: "
+        f"{len(rows)} sesiones, ultimo cierre {last}"
+    )
+
+    if age > 7 or age < 0:
+        raise ValueError(
+            f"Fecha final invalida: {last}, antiguedad {age}"
+        )
+
+    target = DEST / f"market_{symbol}_adjusted.csv"
 
     if target.exists():
-        with target.open(encoding='utf-8-sig', newline='') as f:
+        with target.open(
+            encoding="utf-8-sig", newline=""
+        ) as f:
             previous = list(csv.DictReader(f))
 
-        if previous and (
-            len(rows) < len(previous) - 3
-            or rows[-1]['date'] < previous[-1]['date']
-        ):
-            raise ValueError(f'Descarga truncada: {symbol}')
+        if previous:
+            previous_last = previous[-1]["date"]
 
-    print(f'VALIDADO {symbol}: {len(rows)} sesiones')
+            log(
+                f"COMPARACION {symbol}: "
+                f"nuevo={len(rows)}, anterior={len(previous)}, "
+                f"ultimo_nuevo={last}, "
+                f"ultimo_anterior={previous_last}"
+            )
+
+            if len(rows) < len(previous) - 3:
+                raise ValueError(
+                    "Descarga truncada: "
+                    f"{len(rows)} frente a {len(previous)}"
+                )
+
+            if rows[-1]["date"] < previous_last:
+                raise ValueError(
+                    f"Retroceso de fecha: "
+                    f"{last} frente a {previous_last}"
+                )
+
+    log(f"VALIDADO {symbol}: {len(rows)} sesiones")
     return rows
 
 
@@ -95,16 +158,29 @@ def main():
             downloaded[symbol] = download_one(symbol)
         except Exception as exc:
             failures.append(symbol)
-            print(f'ERROR {symbol}: {exc}', file=sys.stderr)
+            log(
+                f"ERROR_REAL {symbol}: "
+                f"{type(exc).__name__}: {exc}"
+            )
 
     if failures:
-        print('No se ha sustituido ningún archivo.', file=sys.stderr)
+        log(
+            "ACTUALIZACION CANCELADA. "
+            "Activos fallidos: " + ", ".join(failures)
+        )
+        log("No se ha sustituido ningun archivo.")
         return 1
 
-    ends = [date.fromisoformat(downloaded[s][-1]['date']) for s in SYMBOLS]
+    ends = [
+        date.fromisoformat(downloaded[s][-1]["date"])
+        for s in SYMBOLS
+    ]
 
     if (max(ends) - min(ends)).days > 4:
-        print('ERROR: fechas finales incompatibles', file=sys.stderr)
+        log(
+            "ERROR_REAL: fechas finales incompatibles: "
+            + str(dict(zip(SYMBOLS, map(str, ends))))
+        )
         return 1
 
     DEST.mkdir(parents=True, exist_ok=True)
@@ -113,28 +189,35 @@ def main():
     try:
         for symbol in SYMBOLS:
             with tempfile.NamedTemporaryFile(
-                mode='w', encoding='utf-8', newline='',
-                dir=DEST, prefix=f'.{symbol}_',
-                suffix='.tmp', delete=False
+                mode="w",
+                encoding="utf-8",
+                newline="",
+                dir=DEST,
+                prefix=f".{symbol}_",
+                suffix=".tmp",
+                delete=False,
             ) as f:
                 path = Path(f.name)
                 staged.append((
                     path,
-                    DEST / f'market_{symbol}_adjusted.csv'
+                    DEST / f"market_{symbol}_adjusted.csv",
                 ))
-                writer = csv.DictWriter(f, fieldnames=FIELDS)
+                writer = csv.DictWriter(
+                    f, fieldnames=FIELDS
+                )
                 writer.writeheader()
                 writer.writerows(downloaded[symbol])
 
         for temp, target in staged:
             os.replace(temp, target)
+
     finally:
         for temp, _ in staged:
             temp.unlink(missing_ok=True)
 
-    print('Histórico ajustado actualizado.')
+    log("HISTORICO AJUSTADO ACTUALIZADO")
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())
