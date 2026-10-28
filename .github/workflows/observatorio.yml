@@ -27,7 +27,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Instalar dependencias
+      - name: Instalar dependencias historicas
         run: pip install yfinance
 
       - name: Ejecutar observatorio
@@ -39,18 +39,19 @@ jobs:
           python collector.py
           python guardar_historico.py
           python radar.py
+          python registro_senales.py
           python backtest_6plus1.py
           python validacion_6plus1.py
 
-      - name: Conservar historico
+      - name: Conservar historico y senales
+        if: success()
         run: |
-          set -euo pipefail
-          test -d historico
+          test -d historico || { echo 'ERROR: historico/ no existe'; exit 1; }
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add historico/
+          git add historico/ registro_senales/
           if ! git diff --cached --quiet; then
-            git commit -m "Actualizar historico financiero"
+            git commit -m "Actualizar historico y senales 6+1"
             git pull --rebase origin "${GITHUB_REF_NAME}"
             git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
@@ -61,7 +62,11 @@ jobs:
         with:
           name: observatorio-6plus1
           path: |
+            data/
             output/
             historico/
+            registro_senales/
+            *.csv
+            *.json
           if-no-files-found: warn
           retention-days: 30
