@@ -16,11 +16,13 @@ concurrency:
 jobs:
   descargar:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Descargar repositorio
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Preparar Python
         uses: actions/setup-python@v5
@@ -28,21 +30,38 @@ jobs:
           python-version: "3.11"
 
       - name: Instalar yfinance
-        run: pip install 'yfinance>=0.2.50,<2'
+        run: |
+          python -m pip install --upgrade pip
+          pip install "yfinance>=0.2.50,<2" "pandas<3"
 
       - name: Validar y actualizar historico ajustado
-        run: python historico_inicial.py
+        run: |
+          set -euo pipefail
+          python historico_inicial.py
 
       - name: Conservar historico en GitHub
         run: |
           set -euo pipefail
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          mkdir -p /tmp/historico_validado_6plus1
+          cp historico_inicial/market_*_adjusted.csv /tmp/historico_validado_6plus1/
+
+          git fetch origin main
+          git reset --hard origin/main
+
+          mkdir -p historico_inicial
+          cp /tmp/historico_validado_6plus1/market_*_adjusted.csv historico_inicial/
+
           git add historico_inicial/
+
           if ! git diff --cached --quiet; then
-            git commit -m "Actualizar historico ajustado para backtests"
-            git pull --rebase origin "${GITHUB_REF_NAME}"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
+            git commit -m "Actualizar historico ajustado validado 6+1"
+            git push origin HEAD:main
+          else
+            echo "Historico sin cambios"
           fi
 
       - name: Guardar copia descargable
@@ -53,4 +72,3 @@ jobs:
           path: historico_inicial/
           if-no-files-found: warn
           retention-days: 30
-          
