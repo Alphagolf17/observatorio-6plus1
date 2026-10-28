@@ -1,16 +1,19 @@
 
-"""Historico ajustado 6+1.
+"""Observatorio 6+1 - Historico ajustado.
 
 Descarga y valida precios ajustados de Yahoo Finance.
-Excluye sesiones estadounidenses no finalizadas.
+Excluye sesiones estadounidenses todavia abiertas.
+Tolera errores insignificantes de precision decimal.
 No modifica historico/ ni output/.
 """
+
 import csv
 import math
 import os
 import sys
 import tempfile
 import warnings
+
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -20,17 +23,12 @@ import yfinance as yf
 warnings.filterwarnings(
     "ignore",
     message=".*inplace keyword.*deprecated.*",
-    category=FutureWarning,
 )
 
 START = "2016-01-01"
 SYMBOLS = ("SPY", "QQQ", "SMH", "ASML", "AVGO")
 DEST = Path("historico_inicial")
 NEW_YORK = ZoneInfo("America/New_York")
-
-# Margen despues del cierre ordinario de Wall Street.
-# No es una garantia de publicacion definitiva del proveedor.
-CLOSE_BUFFER_MINUTES = 90
 
 FIELDS = (
     "date", "open", "high", "low", "close", "volume",
@@ -45,10 +43,12 @@ def log(message):
 def last_eligible_date():
     now = datetime.now(timezone.utc).astimezone(NEW_YORK)
 
-    # En sesiones normales, Wall Street cierra a las 16:00 NY.
-    # El filtro conservador usa las 17:30 NY.
+    # Cierre ordinario: 16:00 hora de Nueva York.
+    # Margen adicional de 90 minutos.
     threshold = datetime.combine(
-        now.date(), time(17, 30), tzinfo=NEW_YORK
+        now.date(),
+        time(17, 30),
+        tzinfo=NEW_YORK,
     )
 
     if now < threshold:
@@ -56,12 +56,44 @@ def last_eligible_date():
     else:
         candidate = now.date()
 
-    # Evitar fines de semana. Los festivos y cierres especiales
-    # se comprueban por las fechas realmente descargadas.
     while candidate.weekday() >= 5:
         candidate -= timedelta(days=1)
 
     return candidate
+
+
+def validate_ohlcv(symbol, day, values):
+    op, hi, lo, cl, vol = values
+
+    if not all(math.isfinite(v) for v in values):
+        raise ValueError(
+            f"Valores no finitos: {symbol} {day}"
+        )
+
+    # Tolerancia exclusivamente numerica.
+    # No modifica los precios descargados.
+    tolerance = max(
+        1e-8,
+        max(abs(op), abs(hi), abs(lo), abs(cl)) * 1e-10,
+    )
+
+    if not (
+        lo > 0
+        and op > 0
+        and hi > 0
+        and cl > 0
+        and vol >= 0
+        and lo <= hi + tolerance
+        and lo <= op + tolerance
+        and lo <= cl + tolerance
+        and op <= hi + tolerance
+        and cl <= hi + tolerance
+    ):
+        raise ValueError(
+            f"OHLCV invalido: {symbol} {day}; "
+            f"open={op}, high={hi}, low={lo}, "
+            f"close={cl}, volume={vol}"
+        )
 
 
 def download_one(symbol, cutoff):
@@ -78,7 +110,9 @@ def download_one(symbol, cutoff):
     )
 
     if frame is None or frame.empty:
-        raise ValueError("Yahoo Finance no devuelve cotizaciones")
+        raise ValueError(
+            "Yahoo Finance no devuelve cotizaciones"
+        )
 
     if getattr(frame.columns, "nlevels", 1) > 1:
         frame.columns = frame.columns.get_level_values(0)
@@ -88,36 +122,23 @@ def download_one(symbol, cutoff):
     if any(col not in frame.columns for col in needed):
         raise ValueError("Faltan columnas OHLCV")
 
-    rows = []
     stamp = datetime.now(timezone.utc).isoformat()
+    rows = []
     excluded = 0
 
     for day, record in frame.iterrows():
         day_date = day.date()
 
-        # No incorporar ninguna fecha posterior al corte.
         if day_date > cutoff:
             excluded += 1
             continue
 
-        values = [float(record[col]) for col in needed]
-        op, hi, lo, cl, vol = values
+        values = [
+            float(record[col])
+            for col in needed
+        ]
 
-        if not all(math.isfinite(v) for v in values):
-            raise ValueError(
-                f"Valor no finito en {day_date}: {values}"
-            )
-
-        if not (
-            0 < lo <= min(op, cl)
-            <= max(op, cl) <= hi
-            and vol >= 0
-        ):
-            raise ValueError(
-                f"OHLCV invalido en {day_date}: "
-                f"open={op}, high={hi}, low={lo}, "
-                f"close={cl}, volume={vol}"
-            )
+        validate_ohlcv(symbol, day_date, values)
 
         rows.append(dict(zip(FIELDS, (
             day_date.isoformat(),
@@ -129,12 +150,15 @@ def download_one(symbol, cutoff):
         ))))
 
     log(
-        f"DESCARGADO {symbol}: {len(rows)} sesiones; "
-        f"filas posteriores al corte excluidas={excluded}"
+        f"DESCARGADO {symbol}: "
+        f"{len(rows)} sesiones; "
+        f"filas excluidas={excluded}"
     )
 
     if len(rows) < 500:
-        raise ValueError("Historico insuficiente")
+        raise ValueError(
+            f"Historico insuficiente: {len(rows)} sesiones"
+        )
 
     if len({r["date"] for r in rows}) != len(rows):
         raise ValueError("Fechas duplicadas")
@@ -147,38 +171,36 @@ def download_one(symbol, cutoff):
 
     if not 0 <= age <= 7:
         raise ValueError(
-            f"Ultimo cierre desactualizado: {last}; "
-            f"corte={cutoff}"
+            f"Ultimo cierre desactualizado: "
+            f"{last}; corte={cutoff}"
         )
 
     target = DEST / f"market_{symbol}_adjusted.csv"
 
     if target.exists():
         with target.open(
-            encoding="utf-8-sig", newline=""
+            encoding="utf-8-sig",
+            newline="",
         ) as f:
             previous = list(csv.DictReader(f))
 
         if previous:
-            previous_last = previous[-1]["date"]
-
-            log(
-                f"COMPARACION {symbol}: "
-                f"nuevo={len(rows)}, anterior={len(previous)}, "
-                f"ultimo_nuevo={last}, "
-                f"ultimo_anterior={previous_last}"
-            )
-
-            # Se permite retirar exclusivamente filas que
-            # correspondan a fechas posteriores al nuevo corte.
             previous_eligible = [
                 r for r in previous
                 if r["date"] <= cutoff.isoformat()
             ]
 
+            log(
+                f"COMPARACION {symbol}: "
+                f"nuevo={len(rows)}, "
+                f"anterior={len(previous)}, "
+                f"ultimo_nuevo={last}, "
+                f"ultimo_anterior={previous[-1]['date']}"
+            )
+
             if len(rows) < len(previous_eligible) - 3:
                 raise ValueError(
-                    "Descarga truncada: "
+                    f"Descarga truncada: "
                     f"{len(rows)} frente a "
                     f"{len(previous_eligible)}"
                 )
@@ -193,9 +215,11 @@ def download_one(symbol, cutoff):
                 )
 
     log(
-        f"VALIDADO {symbol}: {len(rows)} sesiones; "
+        f"VALIDADO {symbol}: "
+        f"{len(rows)} sesiones; "
         f"ultimo cierre={last}"
     )
+
     return rows
 
 
@@ -208,7 +232,9 @@ def main():
 
     for symbol in SYMBOLS:
         try:
-            downloaded[symbol] = download_one(symbol, cutoff)
+            downloaded[symbol] = download_one(
+                symbol, cutoff
+            )
         except Exception as exc:
             failures.append(symbol)
             log(
@@ -225,7 +251,9 @@ def main():
         return 1
 
     ends = [
-        date.fromisoformat(downloaded[s][-1]["date"])
+        date.fromisoformat(
+            downloaded[s][-1]["date"]
+        )
         for s in SYMBOLS
     ]
 
@@ -248,13 +276,15 @@ def main():
                 delete=False,
             ) as f:
                 path = Path(f.name)
+
                 staged.append((
                     path,
                     DEST / f"market_{symbol}_adjusted.csv",
                 ))
 
                 writer = csv.DictWriter(
-                    f, fieldnames=FIELDS
+                    f,
+                    fieldnames=FIELDS,
                 )
                 writer.writeheader()
                 writer.writerows(downloaded[symbol])
