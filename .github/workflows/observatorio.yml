@@ -21,6 +21,8 @@ jobs:
     steps:
       - name: Descargar repositorio
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Preparar Python
         uses: actions/setup-python@v5
@@ -30,7 +32,7 @@ jobs:
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
-          pip install "yfinance>=0.2.50,<2" pandas
+          pip install "yfinance>=0.2.50,<2" "pandas<3"
 
       - name: Ejecutar observatorio completo
         env:
@@ -43,25 +45,41 @@ jobs:
           python radar.py
           python registro_senales.py
           python radar_multiactivo.py
+          python analisis_rotacion.py
           python backtest_6plus1.py
           python validacion_6plus1.py
 
       - name: Conservar historicos y senales
         if: success()
         run: |
-          test -d historico || { echo 'ERROR: falta historico/'; exit 1; }
-          test -d historico_multiactivo || { echo 'ERROR: falta historico_multiactivo/'; exit 1; }
-          test -d registro_senales || { echo 'ERROR: falta registro_senales/'; exit 1; }
+          set -euo pipefail
+
+          test -d historico
+          test -d historico_multiactivo
+          test -d registro_senales
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          mkdir -p /tmp/observatorio_validado_6plus1
+          cp -a historico /tmp/observatorio_validado_6plus1/
+          cp -a historico_multiactivo /tmp/observatorio_validado_6plus1/
+          cp -a registro_senales /tmp/observatorio_validado_6plus1/
+
+          git fetch origin main
+          git reset --hard origin/main
+
+          cp -a /tmp/observatorio_validado_6plus1/historico/. historico/
+          cp -a /tmp/observatorio_validado_6plus1/historico_multiactivo/. historico_multiactivo/
+          cp -a /tmp/observatorio_validado_6plus1/registro_senales/. registro_senales/
+
           git add historico/ historico_multiactivo/ registro_senales/
 
           if ! git diff --cached --quiet; then
-            git commit -m "Actualizar historicos y senales 6+1"
-            git pull --rebase origin "${GITHUB_REF_NAME}"
-            git push origin "HEAD:${GITHUB_REF_NAME}"
+            git commit -m "Actualizar historicos, senales y rotacion 6+1"
+            git push origin HEAD:main
+          else
+            echo "Sin cambios en los historicos"
           fi
 
       - name: Guardar resultados descargables
