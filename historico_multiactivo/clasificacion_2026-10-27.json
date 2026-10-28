@@ -1,0 +1,364 @@
+{
+  "schema_version": 2,
+  "generated_at_utc": "2026-10-28T18:39:05.040439+00:00",
+  "reference_close_date": "2026-10-27",
+  "benchmark": "SPY",
+  "price_basis": "Yahoo Finance auto_adjust=True",
+  "coverage": {
+    "expected": 20,
+    "valid": 20
+  },
+  "assets": [
+    {
+      "symbol": "XLE",
+      "name": "Energia",
+      "date": "2026-10-27",
+      "close_usd_or_native": 68.21,
+      "sessions": 251,
+      "return_pct": {
+        "5": 0.353,
+        "20": 10.838,
+        "60": 16.713
+      },
+      "relative_vs_spy_pp": {
+        "5": 0.274,
+        "20": 10.124,
+        "60": 14.878
+      }
+    },
+    {
+      "symbol": "XLU",
+      "name": "Utilities",
+      "date": "2026-10-27",
+      "close_usd_or_native": 42.85,
+      "sessions": 251,
+      "return_pct": {
+        "5": 2.316,
+        "20": 7.907,
+        "60": -2.694
+      },
+      "relative_vs_spy_pp": {
+        "5": 2.237,
+        "20": 7.193,
+        "60": -4.528
+      }
+    },
+    {
+      "symbol": "CIBR",
+      "name": "Ciberseguridad",
+      "date": "2026-10-27",
+      "close_usd_or_native": 109.65,
+      "sessions": 251,
+      "return_pct": {
+        "5": 9.213,
+        "20": 7.532,
+        "60": 16.764
+      },
+      "relative_vs_spy_pp": {
+        "5": 9.134,
+        "20": 6.817,
+        "60": 14.929
+      }
+    },
+    {
+      "symbol": "XLP",
+      "name": "Consumo defensivo",
+      "date": "2026-10-27",
+      "close_usd_or_native": 87.15,
+      "sessions": 251,
+      "return_pct": {
+        "5": -0.684,
+        "20": 6.475,
+        "60": 3.374
+      },
+      "relative_vs_spy_pp": {
+        "5": -0.763,
+        "20": 5.761,
+        "60": 1.539
+      }
+    },
+    {
+      "symbol": "XLV",
+      "name": "Salud",
+      "date": "2026-10-27",
+      "close_usd_or_native": 179.18,
+      "sessions": 251,
+      "return_pct": {
+        "5": -0.356,
+        "20": 4.949,
+        "60": 10.864
+      },
+      "relative_vs_spy_pp": {
+        "5": -0.435,
+        "20": 4.235,
+        "60": 9.029
+      }
+    },
+    {
+      "symbol": "XLF",
+      "name": "Finanzas",
+      "date": "2026-10-27",
+      "close_usd_or_native": 55.88,
+      "sessions": 251,
+      "return_pct": {
+        "5": 0.287,
+        "20": 3.462,
+        "60": -2.269
+      },
+      "relative_vs_spy_pp": {
+        "5": 0.208,
+        "20": 2.748,
+        "60": -4.104
+      }
+    },
+    {
+      "symbol": "SPY",
+      "name": "S&P 500",
+      "date": "2026-10-27",
+      "close_usd_or_native": 769.66,
+      "sessions": 251,
+      "return_pct": {
+        "5": 0.079,
+        "20": 0.714,
+        "60": 1.835
+      },
+      "relative_vs_spy_pp": {
+        "5": 0.0,
+        "20": 0.0,
+        "60": 0.0
+      }
+    },
+    {
+      "symbol": "IWM",
+      "name": "Small caps EEUU",
+      "date": "2026-10-27",
+      "close_usd_or_native": 280.18,
+      "sessions": 251,
+      "return_pct": {
+        "5": 1.595,
+        "20": 0.419,
+        "60": -5.168
+      },
+      "relative_vs_spy_pp": {
+        "5": 1.516,
+        "20": -0.295,
+        "60": -7.003
+      }
+    },
+    {
+      "symbol": "XLI",
+      "name": "Industriales",
+      "date": "2026-10-27",
+      "close_usd_or_native": 167.92,
+      "sessions": 251,
+      "return_pct": {
+        "5": 0.671,
+        "20": -0.715,
+        "60": -8.074
+      },
+      "relative_vs_spy_pp": {
+        "5": 0.592,
+        "20": -1.43,
+        "60": -9.909
+      }
+    },
+    {
+      "symbol": "VGK",
+      "name": "Europa ETF",
+      "date": "2026-10-27",
+      "close_usd_or_native": 87.04,
+      "sessions": 251,
+      "return_pct": {
+        "5": -0.161,
+        "20": -0.922,
+        "60": -4.04
+      },
+      "relative_vs_spy_pp": {
+        "5": -0.24,
+        "20": -1.636,
+        "60": -5.874
+      }
+    },
+    {
+      "symbol": "QQQ",
+      "name": "Nasdaq 100",
+      "date": "2026-10-27",
+      "close_usd_or_native": 721.25,
+      "sessions": 251,
+      "return_pct": {
+        "5": 0.504,
+        "20": -2.26,
+        "60": 3.133
+      },
+      "relative_vs_spy_pp": {
+        "5": 0.425,
+        "20": -2.975,
+        "60": 1.298
+      }
+    },
+    {
+      "symbol": "XLK",
+      "name": "Tecnologia",
+      "date": "2026-10-27",
+      "close_usd_or_native": 189.49,
+      "sessions": 251,
+      "return_pct": {
+        "5": 2.184,
+        "20": -2.576,
+        "60": 6.555
+      },
+      "relative_vs_spy_pp": {
+        "5": 2.105,
+        "20": -3.29,
+        "60": 4.721
+      }
+    },
+    {
+      "symbol": "GLD",
+      "name": "Oro ETF",
+      "date": "2026-10-27",
+      "close_usd_or_native": 372.28,
+      "sessions": 251,
+      "return_pct": {
+        "5": -1.422,
+        "20": -2.771,
+        "60": 0.153
+      },
+      "relative_vs_spy_pp": {
+        "5": -1.501,
+        "20": -3.486,
+        "60": -1.681
+      }
+    },
+    {
+      "symbol": "BTC-USD",
+      "name": "Bitcoin USD",
+      "date": "2026-10-27",
+      "close_usd_or_native": 80805.0781,
+      "sessions": 251,
+      "return_pct": {
+        "5": -2.575,
+        "20": -3.369,
+        "60": 27.33
+      },
+      "relative_vs_spy_pp": {
+        "5": -2.655,
+        "20": -4.084,
+        "60": 25.496
+      }
+    },
+    {
+      "symbol": "FXI",
+      "name": "China ETF",
+      "date": "2026-10-27",
+      "close_usd_or_native": 32.5,
+      "sessions": 251,
+      "return_pct": {
+        "5": -3.014,
+        "20": -4.017,
+        "60": -10.861
+      },
+      "relative_vs_spy_pp": {
+        "5": -3.093,
+        "20": -4.731,
+        "60": -12.696
+      }
+    },
+    {
+      "symbol": "EWT",
+      "name": "Taiwan ETF",
+      "date": "2026-10-27",
+      "close_usd_or_native": 107.25,
+      "sessions": 251,
+      "return_pct": {
+        "5": -0.075,
+        "20": -6.012,
+        "60": 9.461
+      },
+      "relative_vs_spy_pp": {
+        "5": -0.154,
+        "20": -6.726,
+        "60": 7.626
+      }
+    },
+    {
+      "symbol": "SMH",
+      "name": "Semiconductores",
+      "date": "2026-10-27",
+      "close_usd_or_native": 557.98,
+      "sessions": 251,
+      "return_pct": {
+        "5": 2.127,
+        "20": -8.061,
+        "60": 2.295
+      },
+      "relative_vs_spy_pp": {
+        "5": 2.047,
+        "20": -8.775,
+        "60": 0.461
+      }
+    },
+    {
+      "symbol": "COPX",
+      "name": "Mineras de cobre",
+      "date": "2026-10-27",
+      "close_usd_or_native": 76.68,
+      "sessions": 251,
+      "return_pct": {
+        "5": -3.121,
+        "20": -10.295,
+        "60": -3.377
+      },
+      "relative_vs_spy_pp": {
+        "5": -3.2,
+        "20": -11.009,
+        "60": -5.212
+      }
+    },
+    {
+      "symbol": "ASML",
+      "name": "ASML ADR",
+      "date": "2026-10-27",
+      "close_usd_or_native": 1635.5699,
+      "sessions": 251,
+      "return_pct": {
+        "5": 0.423,
+        "20": -10.72,
+        "60": -0.291
+      },
+      "relative_vs_spy_pp": {
+        "5": 0.344,
+        "20": -11.435,
+        "60": -2.126
+      }
+    },
+    {
+      "symbol": "EWY",
+      "name": "Corea del Sur ETF",
+      "date": "2026-10-27",
+      "close_usd_or_native": 157.46,
+      "sessions": 251,
+      "return_pct": {
+        "5": 2.253,
+        "20": -15.842,
+        "60": -1.735
+      },
+      "relative_vs_spy_pp": {
+        "5": 2.174,
+        "20": -16.556,
+        "60": -3.57
+      }
+    }
+  ],
+  "warnings": [],
+  "limitations": [
+    "Solo se utilizan precios hasta la fecha de referencia.",
+    "La fecha de referencia procede del radar principal.",
+    "No se mezclan sesiones bursatiles abiertas.",
+    "Bitcoin se alinea con las sesiones de SPY.",
+    "Los retornos usan precios ajustados de Yahoo Finance.",
+    "Los ajustes historicos pueden revisarse posteriormente.",
+    "Fortaleza relativa no demuestra flujos institucionales.",
+    "Los resultados no son senales de compra o venta."
+  ]
+}
