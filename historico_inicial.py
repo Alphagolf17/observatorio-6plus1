@@ -1,7 +1,8 @@
 
-"""Actualiza el historico ajustado de Yahoo Finance.
+"""Historico ajustado 6+1.
 
-Valida todas las series antes de sustituir archivos.
+Descarga y valida precios ajustados de Yahoo Finance.
+Excluye sesiones estadounidenses no finalizadas.
 No modifica historico/ ni output/.
 """
 import csv
@@ -10,8 +11,9 @@ import os
 import sys
 import tempfile
 import warnings
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import yfinance as yf
 
@@ -24,6 +26,11 @@ warnings.filterwarnings(
 START = "2016-01-01"
 SYMBOLS = ("SPY", "QQQ", "SMH", "ASML", "AVGO")
 DEST = Path("historico_inicial")
+NEW_YORK = ZoneInfo("America/New_York")
+
+# Margen despues del cierre ordinario de Wall Street.
+# No es una garantia de publicacion definitiva del proveedor.
+CLOSE_BUFFER_MINUTES = 90
 
 FIELDS = (
     "date", "open", "high", "low", "close", "volume",
@@ -35,7 +42,29 @@ def log(message):
     print(message, flush=True)
 
 
-def download_one(symbol):
+def last_eligible_date():
+    now = datetime.now(timezone.utc).astimezone(NEW_YORK)
+
+    # En sesiones normales, Wall Street cierra a las 16:00 NY.
+    # El filtro conservador usa las 17:30 NY.
+    threshold = datetime.combine(
+        now.date(), time(17, 30), tzinfo=NEW_YORK
+    )
+
+    if now < threshold:
+        candidate = now.date() - timedelta(days=1)
+    else:
+        candidate = now.date()
+
+    # Evitar fines de semana. Los festivos y cierres especiales
+    # se comprueban por las fechas realmente descargadas.
+    while candidate.weekday() >= 5:
+        candidate -= timedelta(days=1)
+
+    return candidate
+
+
+def download_one(symbol, cutoff):
     log(f"INICIO {symbol}")
 
     frame = yf.download(
@@ -59,16 +88,24 @@ def download_one(symbol):
     if any(col not in frame.columns for col in needed):
         raise ValueError("Faltan columnas OHLCV")
 
-    stamp = datetime.now(timezone.utc).isoformat()
     rows = []
+    stamp = datetime.now(timezone.utc).isoformat()
+    excluded = 0
 
     for day, record in frame.iterrows():
+        day_date = day.date()
+
+        # No incorporar ninguna fecha posterior al corte.
+        if day_date > cutoff:
+            excluded += 1
+            continue
+
         values = [float(record[col]) for col in needed]
         op, hi, lo, cl, vol = values
 
         if not all(math.isfinite(v) for v in values):
             raise ValueError(
-                f"Valor no finito en {day.date()}: {values}"
+                f"Valor no finito en {day_date}: {values}"
             )
 
         if not (
@@ -77,13 +114,13 @@ def download_one(symbol):
             and vol >= 0
         ):
             raise ValueError(
-                f"OHLCV invalido en {day.date()}: "
+                f"OHLCV invalido en {day_date}: "
                 f"open={op}, high={hi}, low={lo}, "
                 f"close={cl}, volume={vol}"
             )
 
         rows.append(dict(zip(FIELDS, (
-            day.strftime("%Y-%m-%d"),
+            day_date.isoformat(),
             *values,
             symbol,
             "Yahoo Finance via yfinance",
@@ -91,10 +128,13 @@ def download_one(symbol):
             stamp,
         ))))
 
+    log(
+        f"DESCARGADO {symbol}: {len(rows)} sesiones; "
+        f"filas posteriores al corte excluidas={excluded}"
+    )
+
     if len(rows) < 500:
-        raise ValueError(
-            f"Historico insuficiente: {len(rows)} sesiones"
-        )
+        raise ValueError("Historico insuficiente")
 
     if len({r["date"] for r in rows}) != len(rows):
         raise ValueError("Fechas duplicadas")
@@ -103,16 +143,12 @@ def download_one(symbol):
         raise ValueError("Fechas desordenadas")
 
     last = date.fromisoformat(rows[-1]["date"])
-    age = (datetime.now(timezone.utc).date() - last).days
+    age = (cutoff - last).days
 
-    log(
-        f"DESCARGADO {symbol}: "
-        f"{len(rows)} sesiones, ultimo cierre {last}"
-    )
-
-    if age > 7 or age < 0:
+    if not 0 <= age <= 7:
         raise ValueError(
-            f"Fecha final invalida: {last}, antiguedad {age}"
+            f"Ultimo cierre desactualizado: {last}; "
+            f"corte={cutoff}"
         )
 
     target = DEST / f"market_{symbol}_adjusted.csv"
@@ -133,29 +169,46 @@ def download_one(symbol):
                 f"ultimo_anterior={previous_last}"
             )
 
-            if len(rows) < len(previous) - 3:
+            # Se permite retirar exclusivamente filas que
+            # correspondan a fechas posteriores al nuevo corte.
+            previous_eligible = [
+                r for r in previous
+                if r["date"] <= cutoff.isoformat()
+            ]
+
+            if len(rows) < len(previous_eligible) - 3:
                 raise ValueError(
                     "Descarga truncada: "
-                    f"{len(rows)} frente a {len(previous)}"
+                    f"{len(rows)} frente a "
+                    f"{len(previous_eligible)}"
                 )
 
-            if rows[-1]["date"] < previous_last:
+            if (
+                previous_eligible
+                and rows[-1]["date"]
+                < previous_eligible[-1]["date"]
+            ):
                 raise ValueError(
-                    f"Retroceso de fecha: "
-                    f"{last} frente a {previous_last}"
+                    "Retroceso respecto al ultimo cierre elegible"
                 )
 
-    log(f"VALIDADO {symbol}: {len(rows)} sesiones")
+    log(
+        f"VALIDADO {symbol}: {len(rows)} sesiones; "
+        f"ultimo cierre={last}"
+    )
     return rows
 
 
 def main():
+    cutoff = last_eligible_date()
+    log(f"CORTE DE SEGURIDAD: {cutoff}")
+
     downloaded = {}
     failures = []
 
     for symbol in SYMBOLS:
         try:
-            downloaded[symbol] = download_one(symbol)
+            downloaded[symbol] = download_one(symbol, cutoff)
         except Exception as exc:
             failures.append(symbol)
             log(
@@ -165,8 +218,8 @@ def main():
 
     if failures:
         log(
-            "ACTUALIZACION CANCELADA. "
-            "Activos fallidos: " + ", ".join(failures)
+            "ACTUALIZACION CANCELADA: "
+            + ", ".join(failures)
         )
         log("No se ha sustituido ningun archivo.")
         return 1
@@ -177,10 +230,7 @@ def main():
     ]
 
     if (max(ends) - min(ends)).days > 4:
-        log(
-            "ERROR_REAL: fechas finales incompatibles: "
-            + str(dict(zip(SYMBOLS, map(str, ends))))
-        )
+        log("ERROR_REAL: fechas finales incompatibles")
         return 1
 
     DEST.mkdir(parents=True, exist_ok=True)
@@ -202,6 +252,7 @@ def main():
                     path,
                     DEST / f"market_{symbol}_adjusted.csv",
                 ))
+
                 writer = csv.DictWriter(
                     f, fieldnames=FIELDS
                 )
