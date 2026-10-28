@@ -50,6 +50,7 @@ jobs:
           python diagnostico_mercado.py
           python backtest_6plus1.py
           python validacion_6plus1.py
+          python sensibilidad_6plus1.py
 
       - name: Conservar historicos y senales
         if: success()
@@ -81,7 +82,7 @@ jobs:
           git add historico/ historico_multiactivo/ registro_senales/
 
           if ! git diff --cached --quiet; then
-            git commit -m "Actualizar historicos, senales y diagnostico 6+1"
+            git commit -m "Actualizar historicos y senales 6+1"
             git push origin HEAD:main
           else
             echo "Sin cambios en los historicos"
