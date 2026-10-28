@@ -1,10 +1,12 @@
 
-"""Radar multiactivo 6+1, independiente del radar principal.
-Requiere: pip install yfinance pandas
-Datos de Yahoo Finance: orientativos, sujetos a revisiones y retrasos.
+"""Observatorio 6+1: radar multiactivo sincronizado.
+
+Usa exclusivamente cierres hasta la fecha del radar principal.
+Conserva una fotografia diaria de la clasificacion.
+No genera operaciones de inversion.
 """
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -16,7 +18,7 @@ ASSETS = {
     "IWM": "Small caps EEUU",
     "SMH": "Semiconductores",
     "XLK": "Tecnologia",
-    "XLF": "Bancos y finanzas",
+    "XLF": "Finanzas",
     "XLE": "Energia",
     "XLI": "Industriales",
     "XLV": "Salud",
@@ -24,69 +26,118 @@ ASSETS = {
     "XLU": "Utilities",
     "CIBR": "Ciberseguridad",
     "COPX": "Mineras de cobre",
-    "GLD": "Oro (ETF)",
-    "BTC-USD": "Bitcoin (USD)",
-    "EWT": "Taiwan (ETF)",
-    "EWY": "Corea del Sur (ETF)",
-    "FXI": "China grandes empresas",
-    "VGK": "Europa (ETF)",
-    "ASML": "ASML (ADR EEUU)",
+    "GLD": "Oro ETF",
+    "BTC-USD": "Bitcoin USD",
+    "EWT": "Taiwan ETF",
+    "EWY": "Corea del Sur ETF",
+    "FXI": "China ETF",
+    "VGK": "Europa ETF",
+    "ASML": "ASML ADR",
 }
 
 WINDOWS = (5, 20, 60)
 OUT = Path("output")
+HISTORY = Path("historico_multiactivo")
+
+
+def save_json(path, obj):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(
+        json.dumps(obj, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    tmp.replace(path)
+
+
+def get_reference_date():
+    path = OUT / "radar_6plus1.json"
+    radar = json.loads(path.read_text(encoding="utf-8"))
+
+    market = radar["market_data"]
+    required = ("SPY", "QQQ", "SMH")
+    dates = [market[s]["date"] for s in required]
+
+    if len(set(dates)) != 1:
+        raise ValueError("Radar principal sin fechas alineadas")
+
+    reference = date.fromisoformat(dates[0])
+    today = datetime.now(timezone.utc).date()
+    age = (today - reference).days
+
+    if not 0 <= age <= 5:
+        raise ValueError("Fecha del radar principal no vigente")
+
+    return reference
+
+
+def download_close(ticker, reference):
+    data = yf.download(
+        ticker,
+        period="1y",
+        interval="1d",
+        auto_adjust=True,
+        progress=False,
+        threads=False,
+        timeout=20,
+    )
+
+    if data.empty:
+        raise ValueError("Descarga vacia")
+
+    close = data["Close"]
+
+    if isinstance(close, pd.DataFrame):
+        close = close.iloc[:, 0]
+
+    close = pd.to_numeric(
+        close, errors="coerce"
+    ).dropna()
+
+    close = close[close > 0].sort_index()
+    close = close[
+        ~close.index.duplicated(keep="last")
+    ]
+
+    # Normalizar las fechas, sin interpretar horas intradia.
+    close.index = pd.to_datetime(close.index).normalize()
+
+    # Eliminar todos los precios posteriores al cierre
+    # utilizado por el radar principal.
+    cutoff = pd.Timestamp(reference)
+    close = close.loc[close.index <= cutoff]
+
+    if close.empty:
+        raise ValueError("No hay precios anteriores al corte")
+
+    if close.index[-1].date() != reference:
+        raise ValueError(
+            "No existe cierre en fecha de referencia: "
+            + str(close.index[-1].date())
+        )
+
+    if len(close) < 65:
+        raise ValueError(
+            f"Historico insuficiente: {len(close)} sesiones"
+        )
+
+    return close
 
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
+
     now = datetime.now(timezone.utc)
-    results = []
-    warnings = []
+    reference = get_reference_date()
+
     histories = {}
+    warnings = []
 
-    for ticker, name in ASSETS.items():
+    for ticker in ASSETS:
         try:
-            data = yf.download(
-                ticker,
-                period="1y",
-                interval="1d",
-                auto_adjust=True,
-                progress=False,
-                threads=False,
-                timeout=20,
+            histories[ticker] = download_close(
+                ticker, reference
             )
-
-            if data.empty:
-                raise ValueError("Sin datos")
-
-            close = data["Close"]
-
-            if isinstance(close, pd.DataFrame):
-                close = close.iloc[:, 0]
-
-            close = pd.to_numeric(
-                close, errors="coerce"
-            ).dropna()
-
-            close = close[close > 0].sort_index()
-            close = close[
-                ~close.index.duplicated(keep="last")
-            ]
-
-            if len(close) < 65:
-                raise ValueError(
-                    f"Solo {len(close)} sesiones"
-                )
-
-            latest = close.index[-1].date()
-
-            if (now.date() - latest).days > 7:
-                raise ValueError(
-                    f"Datos antiguos: {latest}"
-                )
-
-            histories[ticker] = close
-
         except Exception as exc:
             warnings.append(
                 f"{ticker}: {type(exc).__name__}: {exc}"
@@ -94,46 +145,30 @@ def main():
 
     if "SPY" not in histories:
         raise SystemExit(
-            "Falta SPY: no se puede calcular fortaleza relativa"
+            "SPY no disponible para la fecha de referencia"
         )
 
     benchmark = histories["SPY"]
+    results = []
 
     for ticker, close in histories.items():
-        # Alinear por fechas comunes, incluido Bitcoin.
         aligned = pd.concat(
             [
                 close.rename("asset"),
                 benchmark.rename("spy"),
             ],
             axis=1,
-        ).dropna()
+        ).dropna().sort_index()
 
         if len(aligned) < 65:
             warnings.append(
-                f"{ticker}: insuficientes fechas comunes"
+                f"{ticker}: menos de 65 sesiones comunes"
             )
             continue
 
-        # No utilizar cierres posteriores al último SPY.
-        aligned = aligned.loc[
-            aligned.index <= benchmark.index[-1]
-        ]
-
-        if len(aligned) < 65:
+        if aligned.index[-1].date() != reference:
             warnings.append(
-                f"{ticker}: histórico alineado insuficiente"
-            )
-            continue
-
-        lag = (
-            benchmark.index[-1].date()
-            - aligned.index[-1].date()
-        ).days
-
-        if lag > 4:
-            warnings.append(
-                f"{ticker}: última sesión demasiado antigua"
+                f"{ticker}: fecha final no sincronizada"
             )
             continue
 
@@ -141,25 +176,29 @@ def main():
         relative = {}
 
         for n in WINDOWS:
-            a = (
-                float(aligned["asset"].iloc[-1])
-                / float(aligned["asset"].iloc[-1 - n])
+            asset_return = (
+                aligned["asset"].iloc[-1]
+                / aligned["asset"].iloc[-1 - n]
                 - 1
             ) * 100
 
-            b = (
-                float(aligned["spy"].iloc[-1])
-                / float(aligned["spy"].iloc[-1 - n])
+            spy_return = (
+                aligned["spy"].iloc[-1]
+                / aligned["spy"].iloc[-1 - n]
                 - 1
             ) * 100
 
-            returns[str(n)] = round(a, 3)
-            relative[str(n)] = round(a - b, 3)
+            returns[str(n)] = round(
+                float(asset_return), 3
+            )
+            relative[str(n)] = round(
+                float(asset_return - spy_return), 3
+            )
 
         results.append({
             "symbol": ticker,
             "name": ASSETS[ticker],
-            "date": aligned.index[-1].date().isoformat(),
+            "date": reference.isoformat(),
             "close_usd_or_native": round(
                 float(aligned["asset"].iloc[-1]), 4
             ),
@@ -173,71 +212,84 @@ def main():
         reverse=True,
     )
 
+    coverage = {
+        "expected": len(ASSETS),
+        "valid": len(results),
+    }
+
     report = {
+        "schema_version": 2,
         "generated_at_utc": now.isoformat(),
+        "reference_close_date": reference.isoformat(),
         "benchmark": "SPY",
         "price_basis": "Yahoo Finance auto_adjust=True",
-        "coverage": {
-            "expected": len(ASSETS),
-            "valid": len(results),
-        },
+        "coverage": coverage,
         "assets": results,
         "warnings": warnings,
         "limitations": [
-            "Fortaleza relativa no equivale a flujos de capital demostrados.",
-            "Bitcoin se alinea con sesiones bursátiles de SPY.",
-            "GLD es un ETF de oro, no el precio spot.",
-            "Los ETF internacionales cotizan en EEUU y están en USD.",
-            "Datos de terceros sujetos a retrasos y revisiones.",
-            "No genera órdenes de inversión.",
+            "Solo se utilizan precios hasta la fecha de referencia.",
+            "La fecha de referencia procede del radar principal.",
+            "No se mezclan sesiones bursatiles abiertas.",
+            "Bitcoin se alinea con las sesiones de SPY.",
+            "Los retornos usan precios ajustados de Yahoo Finance.",
+            "Los ajustes historicos pueden revisarse posteriormente.",
+            "Fortaleza relativa no demuestra flujos institucionales.",
+            "Los resultados no son senales de compra o venta.",
         ],
     }
 
-    (OUT / "radar_multiactivo.json").write_text(
-        json.dumps(
-            report,
-            ensure_ascii=False,
-            indent=2,
-        ) + "\n",
-        encoding="utf-8",
-    )
+    save_json(OUT / "radar_multiactivo.json", report)
 
     lines = [
         "# Radar multiactivo 6+1",
         "",
+        f"Fecha de cierre: {reference.isoformat()}",
         f"Cobertura: {len(results)}/{len(ASSETS)}",
         "",
-        "| Activo | 20 sesiones | Relativo a SPY (pp) |",
+        "| Activo | 20 sesiones | Relativo SPY (pp) |",
         "|---|---:|---:|",
     ]
 
-    for a in results:
+    for asset in results:
         lines.append(
-            f"| {a['symbol']} | "
-            f"{a['return_pct']['20']:+.2f}% | "
-            f"{a['relative_vs_spy_pp']['20']:+.2f} |"
+            f"| {asset['symbol']} | "
+            f"{asset['return_pct']['20']:+.2f}% | "
+            f"{asset['relative_vs_spy_pp']['20']:+.2f} |"
         )
 
     if warnings:
-        lines += ["", "## Advertencias"]
-        lines += [f"- {w}" for w in warnings]
+        lines.extend(["", "## Advertencias"])
+        lines.extend(f"- {w}" for w in warnings)
 
     (OUT / "radar_multiactivo.md").write_text(
         "\n".join(lines) + "\n",
         encoding="utf-8",
     )
 
-    print(
-        f"Radar multiactivo: "
-        f"{len(results)}/{len(ASSETS)} activos válidos"
-    )
-
     if len(results) < 15:
         raise SystemExit(
-            "Cobertura insuficiente: menos de 15 activos"
+            f"Cobertura insuficiente: {len(results)}/20"
         )
+
+    # Primera fotografia valida de cada fecha.
+    # Las ejecuciones posteriores no la sobrescriben.
+    snapshot = (
+        HISTORY
+        / f"clasificacion_{reference.isoformat()}.json"
+    )
+
+    if not snapshot.exists():
+        save_json(snapshot, report)
+        print("Nueva fotografia historica creada")
+    else:
+        print("Fotografia existente conservada")
+
+    print(
+        f"Radar multiactivo sincronizado: "
+        f"{len(results)}/{len(ASSETS)} activos, "
+        f"cierre {reference.isoformat()}"
+    )
 
 
 if __name__ == "__main__":
     main()
-  
