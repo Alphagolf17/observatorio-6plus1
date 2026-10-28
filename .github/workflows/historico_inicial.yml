@@ -1,16 +1,22 @@
 
-name: Descarga historica inicial 6+1
+name: Actualizar historico ajustado 6+1
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "15 9 * * 6"
 
 permissions:
   contents: write
 
+concurrency:
+  group: observatorio-6plus1
+  cancel-in-progress: false
+
 jobs:
   descargar:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Descargar repositorio
@@ -22,25 +28,28 @@ jobs:
           python-version: "3.11"
 
       - name: Instalar yfinance
-        run: pip install yfinance
+        run: pip install 'yfinance>=0.2.50,<2'
 
-      - name: Descargar historico
+      - name: Validar y actualizar historico ajustado
         run: python historico_inicial.py
 
       - name: Conservar historico en GitHub
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add historico_inicial/
           if ! git diff --cached --quiet; then
-            git commit -m "Guardar historico bursatil desde 2016"
-            git push
+            git commit -m "Actualizar historico ajustado para backtests"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
           fi
 
-      - name: Guardar archivos generados
+      - name: Guardar copia descargable
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: historico-inicial-6plus1
+          name: historico-ajustado-6plus1
           path: historico_inicial/
           if-no-files-found: warn
           retention-days: 30
