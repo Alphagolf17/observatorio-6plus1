@@ -30,15 +30,11 @@ jobs:
         run: python barrido_535.py
 
       
+      
       - name: Guardar resultados
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: barrido-535-resultados
-          path: |
-            output/
-            resultados/
-            barrido_535/
-            *.csv
-            *.json
-          if-no-files-found: warn
+          path: output_535/
+          if-no-files-found: error
