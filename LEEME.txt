@@ -1,0 +1,16 @@
+BARRIDO 535 — USO EN GITHUB ACTIONS
+
+1. Descarga este ZIP y descomprímelo en tu ordenador o usa GitHub para subir sus archivos.
+2. En el repositorio del Observatorio 6+1, añade barrido_535.py y requirements.txt.
+   IMPORTANTE: si ya tienes requirements.txt, añade las dependencias indicadas,
+   sin sobrescribir el fichero existente.
+3. Copia .github/workflows/barrido_535.yml a la misma ruta del repositorio.
+4. GitHub > Actions > Barrido 535 S&P500 IBEX35 > Run workflow.
+5. Al terminar, descarga el artifact barrido-535-resultados y súbelo al chat.
+
+NOTAS: El script descarga precios de forma individual con Yahoo Finance mediante
+la librería yfinance. Algunas descargas pueden fallar por límites temporales del
+proveedor; el fichero errores_y_ausencias.csv las documenta. El universo del
+S&P 500 se obtiene de Wikipedia en el momento de ejecutar, y la lista de IBEX
+es preliminar; ambos deben verificarse contra la composición oficial de 2026.
+No se asume que un valor sin datos esté plano ni se rellena con cifras ficticias.
