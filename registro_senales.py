@@ -4,6 +4,7 @@
 No genera órdenes de inversión.
 No modifica las fotografías históricas ya registradas.
 """
+
 import csv
 import json
 from datetime import date, datetime, timezone
@@ -38,16 +39,22 @@ def atomic_json(path, data):
 
 def read_prices(symbol):
     path = Path("historico") / f"market_{symbol}.csv"
+
     if not path.exists():
         raise ValueError(f"Falta {path}")
 
     result = {}
+
     with path.open(encoding="utf-8-sig", newline="") as f:
         for row in csv.DictReader(f):
             day = date.fromisoformat(row["date"]).isoformat()
             close = float(row["close"])
+
             if close <= 0:
-                raise ValueError(f"Precio inválido: {symbol} {day}")
+                raise ValueError(
+                    f"Precio inválido: {symbol} {day}"
+                )
+
             result[day] = close
 
     return result
@@ -55,6 +62,7 @@ def read_prices(symbol):
 
 def main():
     now = utc_now()
+
     radar = json.loads(
         (OUT / "radar_6plus1.json").read_text(
             encoding="utf-8"
@@ -65,20 +73,16 @@ def main():
     markets = radar["market_data"]
     signals = radar["signals"]
 
-    
-
+    # Validar cobertura sin bloquear por advertencias
+    # informativas o por el color del semáforo.
     if (
         assessment["available_signals"] != EXPECTED
         or len(signals) != EXPECTED
         or assessment.get("traffic_light") == "sin_datos"
     ):
-        raise SystemExit("Radar incompleto: señales insuficientes")
-
-):
-    raise SystemExit("Radar incompleto: señales insuficientes")
-
-    ):
-        raise SystemExit("Radar incompleto o con advertencias")
+        raise SystemExit(
+            "Radar incompleto: señales insuficientes"
+        )
 
     if any(s not in markets for s in SYMBOLS):
         raise SystemExit("Faltan activos de referencia")
@@ -96,16 +100,27 @@ def main():
     ).days
 
     if not 0 <= age <= 5:
-        raise SystemExit("Cierre demasiado antiguo o futuro")
+        raise SystemExit(
+            "Cierre demasiado antiguo o futuro"
+        )
 
-    generated = parse_time(radar["generated_at_utc"])
+    generated = parse_time(
+        radar["generated_at_utc"]
+    )
+
     if generated > now:
         raise SystemExit("Fecha de generación futura")
 
     if (now - generated).total_seconds() > 3600:
-        raise SystemExit("Radar generado hace más de una hora")
+        raise SystemExit(
+            "Radar generado hace más de una hora"
+        )
 
-    prices = {s: read_prices(s) for s in SYMBOLS}
+    prices = {
+        s: read_prices(s)
+        for s in SYMBOLS
+    }
+
     common_dates = sorted(
         set.intersection(
             *(set(p) for p in prices.values())
@@ -113,18 +128,22 @@ def main():
     )
 
     if signal_date not in common_dates:
-        raise SystemExit("Fecha ausente del histórico")
+        raise SystemExit(
+            "Fecha ausente del histórico"
+        )
 
-    # No registrar un cierre si ya hay precios posteriores.
+    # No registrar un cierre si existen precios posteriores.
     if common_dates[-1] != signal_date:
         raise SystemExit(
             "El histórico contiene sesiones posteriores al radar"
         )
 
     DEST.mkdir(parents=True, exist_ok=True)
+
     snapshot = DEST / f"senal_{signal_date}.json"
     created = False
 
+    # Crear fotografía histórica solo si no existe.
     if not snapshot.exists():
         frozen = {
             "schema_version": 2,
@@ -138,7 +157,8 @@ def main():
             "risk_assessment": assessment,
             "signals": signals,
             "market_data": {
-                s: markets[s] for s in SYMBOLS
+                s: markets[s]
+                for s in SYMBOLS
             },
             "relative_return_20_sessions_vs_spy_percentage_points":
                 radar.get(
@@ -154,26 +174,37 @@ def main():
                 "Sin costes, dividendos ni ejecución real. "
                 "Datos macro no reconstruidos por publicación.",
         }
+
         atomic_json(snapshot, frozen)
         created = True
 
     outcomes_path = DEST / "resultados.json"
+
     outcomes = (
-        json.loads(outcomes_path.read_text(encoding="utf-8"))
+        json.loads(
+            outcomes_path.read_text(
+                encoding="utf-8"
+            )
+        )
         if outcomes_path.exists()
         else {}
     )
 
     positions = {
-        d: i for i, d in enumerate(common_dates)
+        d: i
+        for i, d in enumerate(common_dates)
     }
 
+    # Evaluar señales históricas cuando maduren.
     for path in sorted(
         DEST.glob("senal_????-??-??.json")
     ):
         recorded = json.loads(
-            path.read_text(encoding="utf-8")
+            path.read_text(
+                encoding="utf-8"
+            )
         )
+
         d = recorded["signal_date"]
 
         if d not in positions:
@@ -183,12 +214,13 @@ def main():
             recorded["recorded_at_utc"]
         )
 
-        # Primera sesión con fecha posterior al registro.
+        # Primera sesión posterior a la fecha de registro.
         entry_idx = next(
             (
-                i for i, day in enumerate(common_dates)
-                if date.fromisoformat(day) >
-                   recorded_at.date()
+                i
+                for i, day in enumerate(common_dates)
+                if date.fromisoformat(day)
+                > recorded_at.date()
             ),
             None,
         )
@@ -201,12 +233,13 @@ def main():
         for h in HORIZONS:
             key = f"{d}_{h}"
 
-            # Conservar resultados existentes.
+            # No modificar evaluaciones existentes.
             if key in outcomes:
                 continue
 
-            # Horizonte contado desde el cierre de entrada.
+            # Horizonte desde el cierre de entrada.
             exit_idx = entry_idx + h
+
             if exit_idx >= len(common_dates):
                 continue
 
@@ -216,7 +249,8 @@ def main():
                 s: round(
                     (
                         prices[s][exit_date]
-                        / prices[s][entry_date] - 1
+                        / prices[s][entry_date]
+                        - 1
                     ) * 100,
                     4,
                 )
@@ -232,10 +266,12 @@ def main():
                 "horizon_sessions": h,
                 "returns_pct_unadjusted": returns,
                 "qqq_minus_spy_pp": round(
-                    returns["QQQ"] - returns["SPY"], 4
+                    returns["QQQ"] - returns["SPY"],
+                    4,
                 ),
                 "smh_minus_spy_pp": round(
-                    returns["SMH"] - returns["SPY"], 4
+                    returns["SMH"] - returns["SPY"],
+                    4,
                 ),
                 "method":
                     "cierre posterior al registro "
@@ -271,7 +307,13 @@ def main():
         OUT / "registro_senales_resumen.json",
         report,
     )
-    print(json.dumps(report, ensure_ascii=False))
+
+    print(
+        json.dumps(
+            report,
+            ensure_ascii=False
+        )
+    )
 
 
 if __name__ == "__main__":
