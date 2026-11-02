@@ -66,10 +66,14 @@ def main():
     signals = radar["signals"]
 
     
-if (
-    assessment["available_signals"] != EXPECTED
-    or len(signals) != EXPECTED
-    or assessment.get("traffic_light") == "sin_datos"
+
+    if (
+        assessment["available_signals"] != EXPECTED
+        or len(signals) != EXPECTED
+        or assessment.get("traffic_light") == "sin_datos"
+    ):
+        raise SystemExit("Radar incompleto: señales insuficientes")
+
 ):
     raise SystemExit("Radar incompleto: señales insuficientes")
 
