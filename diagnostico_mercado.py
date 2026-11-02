@@ -4,6 +4,7 @@
 Integra riesgo, macroeconomia y fortaleza relativa.
 No predice precios ni genera recomendaciones operativas.
 """
+
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +16,8 @@ CYCLICAL = ("XLI", "XLF", "XLE", "IWM")
 TECH = ("QQQ", "SMH", "XLK", "ASML")
 CREDIT = "BAMLH0A0HYM2"
 VOLATILITY = "VIXCLS"
+EXPECTED_SIGNALS = 6
+EXPECTED_ASSETS = 20
 
 
 def load(filename):
@@ -24,6 +27,7 @@ def load(filename):
 
 
 def save(filename, data):
+    OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / filename
     path.write_text(
         json.dumps(
@@ -57,26 +61,40 @@ def main():
     rotation = load("analisis_rotacion.json")
     multi = load("radar_multiactivo.json")
 
-    date = radar["market_data"]["SPY"]["date"]
+    reference_date = radar["market_data"]["SPY"]["date"]
 
+    # Comprobar sincronizacion de fechas.
     if (
-        date != rotation["reference_close_date"]
-        or date != multi["reference_close_date"]
+        reference_date != rotation["reference_close_date"]
+        or reference_date != multi["reference_close_date"]
     ):
         raise SystemExit(
             "Fechas de cierre incompatibles"
         )
 
-    if radar.get("warnings") or multi.get("warnings"):
+    # Conservar advertencias sin bloquear por su mera
+    # existencia. Las validaciones criticas siguen activas.
+    input_warnings = (
+        list(radar.get("warnings") or [])
+        + list(multi.get("warnings") or [])
+    )
+
+    risk = radar["risk_assessment"]
+    radar_signals = radar["signals"]
+
+    if (
+        risk["available_signals"] != EXPECTED_SIGNALS
+        or len(radar_signals) != EXPECTED_SIGNALS
+        or risk["traffic_light"] == "sin_datos"
+    ):
         raise SystemExit(
-            "Advertencias en los datos de entrada"
+            "Radar principal incompleto"
         )
 
-    if radar["risk_assessment"]["available_signals"] != 6:
-        raise SystemExit("Radar principal incompleto")
-
-    if multi["coverage"]["valid"] != 20:
-        raise SystemExit("Radar multiactivo incompleto")
+    if multi["coverage"]["valid"] != EXPECTED_ASSETS:
+        raise SystemExit(
+            "Radar multiactivo incompleto"
+        )
 
     assets = {
         a["symbol"]: a
@@ -99,13 +117,15 @@ def main():
         g["average_relative_20_pp"] is None
         for g in groups.values()
     ):
-        raise SystemExit("Faltan activos sectoriales")
+        raise SystemExit(
+            "Faltan activos sectoriales"
+        )
 
     macro = radar["macro_latest"]
-    risk = radar["risk_assessment"]
+
     signals = {
         s["signal"]: s["risk"]
-        for s in radar["signals"]
+        for s in radar_signals
     }
 
     adverse = []
@@ -193,20 +213,28 @@ def main():
         "Las fechas de observacion macro no equivalen "
         "necesariamente a fechas de publicacion"
     )
+
     uncertainty.append(
         "Los grupos sectoriales son cestas equiponderadas "
         "de ETF seleccionados, no indices oficiales"
     )
+
     uncertainty.append(
         "Los indicadores comparten informacion y "
         "no deben contarse como pruebas independientes"
     )
 
+    # Incorporar las advertencias al informe.
+    for warning in input_warnings:
+        uncertainty.append(
+            f"Advertencia de datos: {warning}"
+        )
+
     report = {
         "schema_version": 1,
         "generated_at_utc":
             datetime.now(timezone.utc).isoformat(),
-        "reference_close_date": date,
+        "reference_close_date": reference_date,
         "risk_score_existing":
             risk["risk_score_0_100"],
         "traffic_light_existing":
@@ -218,6 +246,7 @@ def main():
             "liquidity_proxy":
                 radar.get("liquidity_proxy"),
         },
+        "input_warnings": input_warnings,
         "evidence": {
             "adverse": adverse,
             "supportive": supportive,
@@ -241,7 +270,7 @@ def main():
     lines = [
         "# Diagnostico integrado 6+1",
         "",
-        f"Cierre de referencia: {date}",
+        f"Cierre de referencia: {reference_date}",
         f"Semaforo original: {risk['traffic_light']}",
         f"Riesgo original: {risk['risk_score_0_100']}/100",
         "",
@@ -276,10 +305,17 @@ def main():
     )
 
     print(
-        f"Diagnostico integrado generado: {date}"
+        f"Diagnostico integrado generado: {reference_date}"
     )
+
+    if input_warnings:
+        print(
+            f"Advertencias informativas conservadas: "
+            f"{len(input_warnings)}"
+        )
+        for warning in input_warnings:
+            print(f"ADVERTENCIA: {warning}")
 
 
 if __name__ == "__main__":
     main()
-  
