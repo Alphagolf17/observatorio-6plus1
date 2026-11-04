@@ -1,0 +1,144 @@
+{
+  "schema_version": 2,
+  "signal_date": "2026-11-03",
+  "recorded_at_utc": "2026-11-04T14:58:02.233583+00:00",
+  "radar_generated_at_utc": "2026-11-04T14:58:02.199496+00:00",
+  "type": "observacion_no_operativa",
+  "evaluation_method": "primer_cierre_posterior_al_registro",
+  "risk_assessment": {
+    "traffic_light": "amarillo",
+    "risk_score_0_100": 50,
+    "active_signals": 3,
+    "available_signals": 6,
+    "expected_signals": 6,
+    "coverage_pct": 100,
+    "interpretation": "Índice heurístico, NO probabilidad de caída. Sin datos si cobertura incompleta."
+  },
+  "signals": [
+    {
+      "signal": "semiconductor_relative_weakness",
+      "risk": true,
+      "detail": "Semiconductores: fuerte debilidad relativa a 20 sesiones"
+    },
+    {
+      "signal": "nasdaq_relative_weakness",
+      "risk": true,
+      "detail": "Nasdaq: debilidad relativa frente al S&P 500"
+    },
+    {
+      "signal": "spy_below_ma20",
+      "risk": true,
+      "detail": "SPY por debajo de su media de 20 sesiones"
+    },
+    {
+      "signal": "vix_elevated",
+      "risk": false,
+      "detail": "VIX superior a 25: volatilidad elevada"
+    },
+    {
+      "signal": "high_yield_stress",
+      "risk": false,
+      "detail": "Spread high yield superior a 5 puntos: estrés crediticio"
+    },
+    {
+      "signal": "liquidity_contraction",
+      "risk": false,
+      "detail": "Proxy de liquidez Fed: contracción superior a 50.000 millones USD en cuatro observaciones semanales"
+    }
+  ],
+  "market_data": {
+    "SPY": {
+      "date": "2026-11-03",
+      "close": 754.35,
+      "return_5_sessions_pct": -1.99,
+      "return_20_sessions_pct": -3.18,
+      "above_ma20": false,
+      "last_volume_vs_20_session_average": 0.84,
+      "age_days": 1
+    },
+    "QQQ": {
+      "date": "2026-11-03",
+      "close": 685.28,
+      "return_5_sessions_pct": -4.99,
+      "return_20_sessions_pct": -9.79,
+      "above_ma20": false,
+      "last_volume_vs_20_session_average": 0.91,
+      "age_days": 1
+    },
+    "SMH": {
+      "date": "2026-11-03",
+      "close": 518.52,
+      "return_5_sessions_pct": -7.07,
+      "return_20_sessions_pct": -18.02,
+      "above_ma20": false,
+      "last_volume_vs_20_session_average": 0.93,
+      "age_days": 1
+    }
+  },
+  "relative_return_20_sessions_vs_spy_percentage_points": {
+    "QQQ": -6.61,
+    "SMH": -14.84,
+    "ASML": -12.19,
+    "AVGO": -8.44
+  },
+  "liquidity_proxy": {
+    "available": true,
+    "date": "2026-10-28",
+    "proxy_usd_billions": 5745.732,
+    "change_4_weekly_observations_usd_billions": -37.086,
+    "direction": "estable",
+    "limitations": "WALCL - TGA - ON RRP. Alineación por observación, no publicación; solo uso descriptivo actual."
+  },
+  "macro_latest": {
+    "WALCL": {
+      "date": "2026-10-28",
+      "value": 6745635.0,
+      "previous_value": 6753604.0,
+      "age_days": 7
+    },
+    "WTREGEN": {
+      "date": "2026-10-28",
+      "value": 999727.0,
+      "previous_value": 952002.0,
+      "age_days": 7
+    },
+    "RRPONTSYD": {
+      "date": "2026-11-03",
+      "value": 0.427,
+      "previous_value": 5.087,
+      "age_days": 1
+    },
+    "VIXCLS": {
+      "date": "2026-11-03",
+      "value": 20.83,
+      "previous_value": 21.15,
+      "age_days": 1
+    },
+    "BAMLH0A0HYM2": {
+      "date": "2026-11-03",
+      "value": 3.4,
+      "previous_value": 3.43,
+      "age_days": 1
+    },
+    "DGS10": {
+      "date": "2026-11-02",
+      "value": 4.91,
+      "previous_value": 4.94,
+      "age_days": 2
+    },
+    "DFII10": {
+      "date": "2026-11-02",
+      "value": 2.62,
+      "previous_value": 2.6,
+      "age_days": 2
+    },
+    "DTWEXBGS": {
+      "date": "2026-10-30",
+      "value": 121.6656,
+      "previous_value": 121.7361,
+      "age_days": 5
+    }
+  },
+  "price_basis": "cierres no ajustados de Alpha Vantage",
+  "limitations": "Sin costes, dividendos ni ejecución real. Datos macro no reconstruidos por publicación."
+}
