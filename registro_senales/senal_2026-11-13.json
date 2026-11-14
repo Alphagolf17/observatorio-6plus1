@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
   "signal_date": "2026-11-13",
-  "recorded_at_utc": "2026-11-14T07:31:22.021489+00:00",
-  "radar_generated_at_utc": "2026-11-14T07:31:21.995420+00:00",
+  "recorded_at_utc": "2026-11-14T07:32:01.277522+00:00",
+  "radar_generated_at_utc": "2026-11-14T07:32:01.251443+00:00",
   "type": "observacion_no_operativa",
   "evaluation_method": "primer_cierre_posterior_al_registro",
   "risk_assessment": {
