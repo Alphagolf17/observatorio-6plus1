@@ -46,5 +46,85 @@
     "smh_minus_spy_pp": -6.1415,
     "method": "cierre posterior al registro hasta cierre tras h sesiones",
     "limitations": "No equivale a operación ejecutable. Sin dividendos ni costes."
+  },
+  "2026-10-27_10": {
+    "signal_date": "2026-10-27",
+    "recorded_at_utc": "2026-10-28T18:17:53.887955+00:00",
+    "entry_date": "2026-10-29",
+    "evaluation_date": "2026-11-12",
+    "horizon_sessions": 10,
+    "returns_pct_unadjusted": {
+      "SPY": -1.5909,
+      "QQQ": -3.7982,
+      "SMH": -10.6717
+    },
+    "qqq_minus_spy_pp": -2.2073,
+    "smh_minus_spy_pp": -9.0808,
+    "method": "cierre posterior al registro hasta cierre tras h sesiones",
+    "limitations": "No equivale a operación ejecutable. Sin dividendos ni costes."
+  },
+  "2026-10-28_10": {
+    "signal_date": "2026-10-28",
+    "recorded_at_utc": "2026-10-28T20:32:05.942292+00:00",
+    "entry_date": "2026-10-29",
+    "evaluation_date": "2026-11-12",
+    "horizon_sessions": 10,
+    "returns_pct_unadjusted": {
+      "SPY": -1.5909,
+      "QQQ": -3.7982,
+      "SMH": -10.6717
+    },
+    "qqq_minus_spy_pp": -2.2073,
+    "smh_minus_spy_pp": -9.0808,
+    "method": "cierre posterior al registro hasta cierre tras h sesiones",
+    "limitations": "No equivale a operación ejecutable. Sin dividendos ni costes."
+  },
+  "2026-11-02_5": {
+    "signal_date": "2026-11-02",
+    "recorded_at_utc": "2026-11-03T15:14:18.011591+00:00",
+    "entry_date": "2026-11-04",
+    "evaluation_date": "2026-11-11",
+    "horizon_sessions": 5,
+    "returns_pct_unadjusted": {
+      "SPY": -0.9129,
+      "QQQ": -0.2269,
+      "SMH": 0.5334
+    },
+    "qqq_minus_spy_pp": 0.686,
+    "smh_minus_spy_pp": 1.4463,
+    "method": "cierre posterior al registro hasta cierre tras h sesiones",
+    "limitations": "No equivale a operación ejecutable. Sin dividendos ni costes."
+  },
+  "2026-11-03_5": {
+    "signal_date": "2026-11-03",
+    "recorded_at_utc": "2026-11-04T14:58:02.233583+00:00",
+    "entry_date": "2026-11-05",
+    "evaluation_date": "2026-11-12",
+    "horizon_sessions": 5,
+    "returns_pct_unadjusted": {
+      "SPY": 3.2906,
+      "QQQ": 6.355,
+      "SMH": 12.0608
+    },
+    "qqq_minus_spy_pp": 3.0644,
+    "smh_minus_spy_pp": 8.7702,
+    "method": "cierre posterior al registro hasta cierre tras h sesiones",
+    "limitations": "No equivale a operación ejecutable. Sin dividendos ni costes."
+  },
+  "2026-11-04_5": {
+    "signal_date": "2026-11-04",
+    "recorded_at_utc": "2026-11-05T15:32:56.719705+00:00",
+    "entry_date": "2026-11-06",
+    "evaluation_date": "2026-11-13",
+    "horizon_sessions": 5,
+    "returns_pct_unadjusted": {
+      "SPY": 2.5949,
+      "QQQ": 3.626,
+      "SMH": 4.9121
+    },
+    "qqq_minus_spy_pp": 1.0311,
+    "smh_minus_spy_pp": 2.3172,
+    "method": "cierre posterior al registro hasta cierre tras h sesiones",
+    "limitations": "No equivale a operación ejecutable. Sin dividendos ni costes."
   }
 }
