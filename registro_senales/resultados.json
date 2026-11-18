@@ -158,5 +158,21 @@
     "smh_minus_spy_pp": -3.5412,
     "method": "cierre posterior al registro hasta cierre tras h sesiones",
     "limitations": "No equivale a operación ejecutable. Sin dividendos ni costes."
+  },
+  "2026-10-30_10": {
+    "signal_date": "2026-10-30",
+    "recorded_at_utc": "2026-11-02T12:18:18.512511+00:00",
+    "entry_date": "2026-11-03",
+    "evaluation_date": "2026-11-17",
+    "horizon_sessions": 10,
+    "returns_pct_unadjusted": {
+      "SPY": -2.9045,
+      "QQQ": -4.1341,
+      "SMH": -11.2667
+    },
+    "qqq_minus_spy_pp": -1.2296,
+    "smh_minus_spy_pp": -8.3622,
+    "method": "cierre posterior al registro hasta cierre tras h sesiones",
+    "limitations": "No equivale a operación ejecutable. Sin dividendos ni costes."
   }
 }
